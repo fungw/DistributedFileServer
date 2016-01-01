@@ -3,7 +3,7 @@ require 'open-uri'
 
 class CLIENT
 	hostname = '0.0.0.0'
-	port = 8080
+	port = ARGV[0]
 
 	loop do
 		puts "=====COMMANDS====="

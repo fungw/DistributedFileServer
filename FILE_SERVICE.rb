@@ -6,40 +6,51 @@ require 'thread'
 include Socket::Constants
 
 $DIRECTORY_PORT = 9000
+$LOCK_PORT = 9001
 
 class FILESERVICE
 	def readFile (request)
 		response = ""
 		filename = request.split("READ")[1].strip() 
-		socket = TCPSocket.open('0.0.0.0', $DIRECTORY_PORT)
-		socket.print("GET #{filename}\n")
-
-		file_exist = File.exist?(File.dirname(__FILE__) + "/files/#{filename}")
-		if !file_exist
-			puts "File does not exist!"
-			response = "File does not exist!"
-		else 
-	 	File.open(File.dirname(__FILE__) + "/files/#{filename}", "r") do |f|
-				f.each_line do |line|
-					response << line
+		directory_socket = TCPSocket.open('0.0.0.0', $DIRECTORY_PORT)
+		directory_socket.print("GET #{filename}\n")
+		
+		lock_socket = TCPSocket.open('0.0.0.0', $LOCK_PORT)
+		status = lock_socket.print("REQUEST #{filename}\n")
+		if status  
+			file_exist = File.exist?(File.dirname(__FILE__) + "/files/#{filename}")
+			if !file_exist
+				puts "File does not exist!"
+				response = "File does not exist!"
+			else 
+	 		File.open(File.dirname(__FILE__) + "/files/#{filename}", "r") do |f|
+					f.each_line do |line|
+						response << line
+					end
 				end
+				puts "File read succesfully"
 			end
-			puts "File read succesfully"
+			lock_socket.print("RELEASE #{filename}"
+			puts "FILE READ: " + response
+			response
 		end
-		puts "FILE READ: " + response
-		response
 	end
 
 	def writeFile (request)	
 		filename = request.split(" ")[1].strip()
 		content = request.split("MSG")[1].strip()
-		file_exist = File.exist?(File.dirname(__FILE__) + "/files/#{filename}")
-		if !file_exist
-			puts "Writing file to #{filename}"
-			File.write(File.dirname(__FILE__) + "/files/#{filename}", "#{content}\n")
-		else
-			File.open(File.dirname(__FILE__) + "/files/#{filename}", "a") { |f|
-			f.write("#{content}\n") }
+		lock_socket = TCPSocket.open('0.0.0.0', $LOCK_PORT)
+		status = lock_socket.print("REQUEST #{filename}\n")
+		if status
+			file_exist = File.exist?(File.dirname(__FILE__) + "/files/#{filename}")
+			if !file_exist
+				puts "Writing file to #{filename}"
+				File.write(File.dirname(__FILE__) + "/files/#{filename}", "#{content}\n")
+			else
+				File.open(File.dirname(__FILE__) + "/files/#{filename}", "a") { |f|
+				f.write("#{content}\n") }
+			end
+			lock_socket.print("RELEASE #{filename}\n");
 		end
 		puts "File written"
 		file_written = "File written to #{filename}\n"
