@@ -1,1 +1,1 @@
-This is the first line of the message\nThis is the second line of the hello.txt
+This is just a test message, I hope this works

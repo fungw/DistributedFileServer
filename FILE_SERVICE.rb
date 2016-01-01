@@ -5,11 +5,15 @@ require 'socket'
 require 'thread'
 include Socket::Constants
 
-class FILEDISTRIBUTION
+$DIRECTORY_PORT = 9000
 
+class FILESERVICE
 	def readFile (request)
 		response = ""
 		filename = request.split("READ")[1].strip() 
+		socket = TCPSocket.open('0.0.0.0', $DIRECTORY_PORT)
+		socket.print("GET #{filename}\n")
+
 		file_exist = File.exist?(File.dirname(__FILE__) + "/files/#{filename}")
 		if !file_exist
 			puts "File does not exist!"
@@ -39,8 +43,10 @@ class FILEDISTRIBUTION
 		end
 		puts "File written"
 		file_written = "File written to #{filename}\n"
+		socket = TCPSocket.open('0.0.0.0', $DIRECTORY_PORT)
+		socket.print("ADD IP:#$address" + "PORT:#$port" + "FILE:" +	"#{filename}\n")
+		puts "Directory service message sent"
 	end
-
 end
 
 class THREADPOOL 
@@ -48,8 +54,8 @@ class THREADPOOL
 		$work_q = Queue.new
 	end
 	
-	def pushThread (client)
-	 file_distro = FILEDISTRIBUTION.new
+	def file_service (client)
+	 file_service = FILESERVICE.new
  	 (0..50).to_a.each{|x| $work_q.push x}
 	 workers = (0...4).map do
 		Thread.new do
@@ -59,9 +65,9 @@ class THREADPOOL
 				 puts "#{client_request}"
 					case client_request
 						when /READ/
-			  		client_res = file_distro.readFile(client_request)
+			  		client_res = file_service.readFile(client_request)
 						when /WRITE/
-							client_res = file_distro.writeFile(client_request)
+							client_res = file_service.writeFile(client_request)
 						else
 							client_res = "Error"
 					end
@@ -75,16 +81,15 @@ class THREADPOOL
 	end
 end
 
-class DFS
+class FILE_SERVICE_MAIN
 	threadpool = THREADPOOL.new
-	address = '0.0.0.0'
-	port = 443
-	tcpServer = TCPServer.new(address, port)
-	puts "Server running #{address} on #{port}"
+	$address = '0.0.0.0'
+	$port = ARGV[0]
+	tcpServer = TCPServer.new($address, $port)
+	puts "File Service server running #$address on #$port"
 	loop do
 		Thread.fork(tcpServer.accept) do |client|
-		 threadpool.pushThread client 
-		 puts "finished"
+		 threadpool.file_service client 
 		 client.close
 		end
 	end
