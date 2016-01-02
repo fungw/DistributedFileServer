@@ -1,6 +1,7 @@
 #!/usr/bin/env ruby
 
-require 'timeout'
+require 'openssl'
+require 'base64'
 require 'socket'
 require 'thread'
 include Socket::Constants
@@ -12,11 +13,28 @@ class FILESERVICE
 	def readFile (request)
 		response = ""
 		filename = request.split("READ")[1].strip() 
+
+		#	Send encrypted file location lookup to directory service
 		directory_socket = TCPSocket.open('0.0.0.0', $DIRECTORY_PORT)
-		directory_socket.print("GET #{filename}\n")
+		message_directory = "GET #{filename}"
+		encrypted_string = Base64.encode64($public_key.public_encrypt(message_directory))
+		puts "\nSending ENCRYPTED GET"
+		puts "=====BEGIN====="
+		puts "#{encrypted_string}"
+		puts "======END======\n"
+		directory_socket.print("GET #{encrypted_string}\n")
 		
+		# Send encrypted lock request to lock service
 		lock_socket = TCPSocket.open('0.0.0.0', $LOCK_PORT)
-		status = lock_socket.print("REQUEST #{filename}\n")
+		message_lock = "REQUEST #{filename}"
+		encrypted_string = Base64.encode64($public_key.public_encrypt(message_lock))
+		puts "\nSending LOCK REQUEST"
+		puts "=====BEGIN====="
+		puts "#{encrypted_string}"
+		puts "======END======\n"
+		lock_socket.print("REQUEST #{encrypted_string}\n")
+		status = lock_socket.gets()
+
 		if status  
 			file_exist = File.exist?(File.dirname(__FILE__) + "/files/#{filename}")
 			if !file_exist
@@ -30,7 +48,14 @@ class FILESERVICE
 				end
 				puts "File read succesfully"
 			end
-			lock_socket.print("RELEASE #{filename}"
+			# Send encrypted lock release to lock service
+			message_lock = "RELEASE #{filename}"
+			encrypted_string = Base64.encode64($public_key.public_encrypt(message_lock))
+			puts "\nSending ENCRYPTED RELEASE"
+			puts "=====BEGIN====="
+			puts "#{encrypted_string}"
+			puts "======END======\n"
+			lock_socket.print("RELEASE #{encrypted_string}")
 			puts "FILE READ: " + response
 			response
 		end
@@ -39,8 +64,18 @@ class FILESERVICE
 	def writeFile (request)	
 		filename = request.split(" ")[1].strip()
 		content = request.split("MSG")[1].strip()
+
+		# Send encrypted lock request to lock service
 		lock_socket = TCPSocket.open('0.0.0.0', $LOCK_PORT)
-		status = lock_socket.print("REQUEST #{filename}\n")
+		message_lock = "REQUEST #{filename}"
+		encrypted_string = Base64.encode64($public_key.public_encrypt(message_lock))
+		puts "\nSending ENCRYPTED REQUEST LOCK"
+		puts "=====BEGIN====="
+		puts "#{encrypted_string}"
+		puts "======END======\n"
+		lock_socket.print("REQUEST #{encrypted_string}\n")
+		status = lock_socket.gets()
+
 		if status
 			file_exist = File.exist?(File.dirname(__FILE__) + "/files/#{filename}")
 			if !file_exist
@@ -50,12 +85,27 @@ class FILESERVICE
 				File.open(File.dirname(__FILE__) + "/files/#{filename}", "a") { |f|
 				f.write("#{content}\n") }
 			end
-			lock_socket.print("RELEASE #{filename}\n");
+			# Send encrypted lock release to lock service
+			message_lock = "RELEASE #{filename}"
+			encrypted_string = Base64.encode64($public_key.public_encrypt(message_lock))
+			puts "\nSending LOCK RELEASE"
+			puts "=====BEGIN====="
+			puts "#{encrypted_string}"
+			puts "======END======\n"
+			lock_socket.print("RELEASE #{encrypted_string}\n");
 		end
 		puts "File written"
 		file_written = "File written to #{filename}\n"
-		socket = TCPSocket.open('0.0.0.0', $DIRECTORY_PORT)
-		socket.print("ADD IP:#$address" + "PORT:#$port" + "FILE:" +	"#{filename}\n")
+
+		# Send encrypted write location to directory service
+		directory_socket = TCPSocket.open('0.0.0.0', $DIRECTORY_PORT)
+		message_directory = "ADD IP:#$address" + "PORT:#$port" + "FILE:" + "#{filename}\n"
+		encrypted_string = Base64.encode64($public_key.public_encrypt(message_directory))
+		puts "\nSending ENCRYPTED ADD"
+		puts "=====BEGIN====="
+		puts "#{encrypted_string}"
+		puts "======END======\n"
+		directory_socket.print("ADD #{encrypted_string}")
 		puts "Directory service message sent"
 	end
 end
@@ -94,6 +144,8 @@ end
 
 class FILE_SERVICE_MAIN
 	threadpool = THREADPOOL.new
+	public_key_file = 'public.pem'
+	$public_key = OpenSSL::PKey::RSA.new(File.read(public_key_file))
 	$address = '0.0.0.0'
 	$port = ARGV[0]
 	tcpServer = TCPServer.new($address, $port)

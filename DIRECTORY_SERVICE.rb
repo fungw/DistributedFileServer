@@ -1,5 +1,7 @@
 #!/usr/bin/env ruby
 
+require 'openssl'
+require 'base64'
 require 'socket'
 require 'thread'
 include Socket::Constants
@@ -40,21 +42,33 @@ class DATABASE
 end
 
 class DIRECTORYSERVICE
-	def add (request)
+	def add (encrypted_request)
+		# Decrpyt the add message
+		remove_ADD = encrypted_request.split("ADD")[1].strip()
+		request = $private_key.private_decrypt(Base64.decode64(remove_ADD))
+		puts "\nDECRYPTED ADD MESSAGE"
+		puts "=====BEGIN====="
+		puts "#{request}"
+		puts "======END======\n"
+		
 		parse = request.split("ADD")[1].strip()
-
 		file = parse.split("FILE:")[1].strip()
-
 	 portIP = parse.split("FILE:")[0].strip()
 		port = portIP.split("PORT:")[1].strip()
-
 		ip = portIP.split("PORT:")[0].strip()
 		server_ip = ip.split("IP:")[1].strip()
-
 		$database.setFileLocation( file.to_i, file, server_ip, port )
 	end
 	
-	def get (request)
+	def get (encrypted_request)
+		# Decrypt the get message
+		remove_GET = encrypted_request.split("GET")[1].strip()
+		request = $private_key.private_decrypt(Base64.decode64(remove_GET))
+		puts "\nDECRYPTED GET MESSAGE"
+		puts "=====BEGIN====="
+		puts "#{request}"
+		puts "======END======\n"
+
 		parse = request.split("GET")[1].strip()
 		file = $database.getFileLocation( parse.to_i ) 
 		address = $database.getAddress( parse.to_i )
@@ -75,8 +89,15 @@ class THREADPOOL
 		Thread.new do
 			begin
 			 while x = $work_q.pop(true)
-					client_request = client.gets()
-					puts "Request: #{client_request}"
+					client_request = ""
+					while !client_request.include? "==" do
+						message = client.gets()
+						client_request << message
+					end
+					puts "\nMessage received:"
+					puts "=====BEGIN====="
+					puts "#{client_request}"
+					puts "======END======\n"
 					case client_request
 						when /ADD/
 							directory_service.add(client_request)	
@@ -94,6 +115,11 @@ end
 
 class DIRECTORY_SERVICE_MAIN
 	threadpool = THREADPOOL.new
+
+	private_key_file = 'private.pem'
+	password = 'fortyone'
+	$private_key = OpenSSL::PKey::RSA.new(File.read(private_key_file), password)
+	
 	$database = DATABASE.new
 	address = '0.0.0.0'
 	port = 9000
