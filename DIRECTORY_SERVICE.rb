@@ -6,6 +6,8 @@ require 'socket'
 require 'thread'
 include Socket::Constants
 
+$DIRECTORY_PORT = 9000
+
 class DATABASE
 	def initialize()
 		$file = { }
@@ -122,9 +124,8 @@ class DIRECTORY_SERVICE_MAIN
 	
 	$database = DATABASE.new
 	address = '0.0.0.0'
-	port = 9000
-	tcpServer = TCPServer.new(address, port)
-	puts "Directory Service server running #{address} on #{port}"
+	tcpServer = TCPServer.new(address, $DIRECTORY_PORT)
+	puts "Directory Service server running #{address} on #$DIRECTORY_PORT"
 	loop do
 		Thread.fork(tcpServer.accept) do |client|
 		 threadpool.directory_service client 

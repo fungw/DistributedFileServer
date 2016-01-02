@@ -7,7 +7,7 @@ require 'thread'
 include Socket::Constants
 
 $DIRECTORY_PORT = 9000
-$LOCK_PORT = 9001
+$LOCK_PORT = 9100
 
 class FILESERVICE
 	def readFile (request)

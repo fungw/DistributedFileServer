@@ -6,7 +6,7 @@ require 'socket'
 require 'thread'
 include Socket::Constants
 
-$LOCK_PORT = 9001
+$LOCK_PORT = 9100
 
 class DATABASE
 	def initialize()
