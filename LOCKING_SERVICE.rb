@@ -115,7 +115,7 @@ class LOCKING_SERVICE_MAIN
 	$database = DATABASE.new 
 	$address = '0.0.0.0'
 	tcpServer = TCPServer.new($address, $LOCK_PORT)
-	puts "Locking Service server running #$address on #$port"
+	puts "Locking Service server running #$address on #$LOCK_PORT"
 	loop do
 		Thread.fork(tcpServer.accept) do |client|
 		 threadpool.locking_service client 

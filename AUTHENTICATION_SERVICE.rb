@@ -4,6 +4,7 @@ require 'openssl'
 require 'base64'
 require 'socket'
 require 'thread'
+require 'uri'
 include Socket::Constants
 
 $AS_PORT = 9200
@@ -23,6 +24,12 @@ class DATABASE
 			$password[join_id] = password
 			puts "Registering user #{username}, #{join_id}"
 			$login[join_id] = false
+		}
+	end
+
+	def get_pw ( join_id )
+		@lock.synchronize {
+			password = $password[join_id]
 		}
 	end
 
@@ -71,9 +78,27 @@ class AS_SERVICE
 	end
 
 	def login ( encrypted_request )
-		# Decrypt message 
 		remove_request = encrypted_request.split("LOGIN")[1].strip()
-		request = $private_key.private_decrypt(Base64.decode64(remove_request))
+		encrypted_data = remove_request.split("DATA:")[1].strip()
+		username = remove_request.split("DATA:")[0].strip()	
+		username = username.split("USERNAME:")[1].strip()
+		user_pw = $database.get_pw(username.hash)
+		while user_pw.length < 24 do
+			user_pw << '0'
+		end
+		puts "#{user_pw}"
+
+		puts "HERE: #{encrypted_data}"
+		data = $private_key.private_decrypt(Base64.decode64(encrypted_data))
+		puts "#{data}"
+
+		cipher = OpenSSL::Cipher::Cipher.new("des-ede3-cbc")
+		cipher.decrypt
+		cipher.key = user_pw
+		cipher.iv = data.slice!(0,8)
+		puts "#{data}"
+		request = cipher.update(data) + cipher.final
+
 		puts "DECRYPTED LOGIN MESSAGE"
 		puts "=====BEGIN====="
 		puts "#{request}"
@@ -82,7 +107,6 @@ class AS_SERVICE
 		login = request.split("LOGIN")[1].strip()
 		password = login.split("PASSWORD:")[1].strip()
 		remove_PW = login.split("PASSWORD:")[0].strip()
-		username = remove_PW.split("USERNAME:")[1].strip()
 		join_id = username.hash
 		status = $database.login( join_id, username, password)
 	end
@@ -130,8 +154,7 @@ class THREADPOOL
 							status = as_service.logout(client_request)
 			 	end
 					puts "Sending: #{status}"
-					client.puts status
-			end
+					client.puts status end
 			rescue ThreadError
 		  end
 		end
